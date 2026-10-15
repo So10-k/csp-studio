@@ -13,3 +13,11 @@ npm run check   # typecheck + tests + production build
 ```
 
 Design: `docs/specs/2026-10-14-apcsp-ide-design.md`.
+
+## Deploy
+
+Live at https://agreeable-plant-081b4060f.5.azurestaticapps.net (Azure Static Web App `swa-cspstudio`, resource group `rg-cspstudio`, Free tier).
+
+```bash
+npm run deploy   # check + build, then upload ./dist with the SWA CLI (needs `az login`)
+```

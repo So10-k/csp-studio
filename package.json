@@ -7,7 +7,8 @@
     "dev": "vite --port 5190",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "check": "tsc --noEmit && vitest run && vite build"
+    "check": "tsc --noEmit && vitest run && vite build",
+    "deploy": "npm run check && npx -y @azure/static-web-apps-cli@latest deploy ./dist --deployment-token \"$(az staticwebapp secrets list -n swa-cspstudio -g rg-cspstudio --query properties.apiKey -o tsv)\" --env production"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
