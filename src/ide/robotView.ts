@@ -84,6 +84,7 @@ export class RobotView {
   setEditable(on: boolean) {
     this.editable = on;
     this.el.classList.toggle('locked', !on);
+    if (on && !this.robot) this.syncBar();
   }
 
   /** Called after the VM runs: pick up the robot's new position. `instant` skips the animation. */
@@ -103,6 +104,7 @@ export class RobotView {
     if (crash?.type === 'crash' && !this.crash) this.crash = { x: crash.x, y: crash.y, t: performance.now() };
     if (r.atGoal() && !this.celebrate) this.celebrate = performance.now();
     if (instant) this.pose = { ...this.target };
+    this.status.textContent = `Robot at column ${r.x + 1}, row ${r.y + 1}, facing ${['up', 'right', 'down', 'left'][r.dir]}${r.atGoal() ? ' · on the goal!' : ''}`;
     this.kick();
   }
 
@@ -119,7 +121,7 @@ export class RobotView {
     const g = this.world.goal;
     this.status.textContent = this.editable
       ? `${this.world.width}×${this.world.height} grid · robot at column ${this.world.start.x + 1}, row ${this.world.start.y + 1}${g ? '' : ' · no goal'}`
-      : '';
+      : this.status.textContent;
   }
 
   private resize(how: string) {

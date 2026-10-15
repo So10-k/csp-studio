@@ -15,14 +15,15 @@ import { EXAMPLES, WORLDS } from './examples';
 import { Inspector } from './inspector';
 import { REFERENCE_HTML } from './reference';
 import { RobotView } from './robotView';
-import { load, save } from './storage';
+import { decodeShare, encodeShare } from './share';
+import { defaultWorld, files, makeFile, type FileDoc } from './storage';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 // ── state ──────────────────────────────────────────────────────
 type View = 'text' | 'blocks' | 'split';
-const saved = load();
-let view: View = saved.view;
+const prefs = files.prefs();
+let view: View = prefs.view;
 let program: Program | null = null;
 let compiled: Compiled | null = null;
 let vm: VM | null = null;
@@ -38,30 +39,30 @@ let blockIdFor = new Map<string, string>();
 
 // ── widgets ────────────────────────────────────────────────────
 const con = new ConsoleView($('console'));
-con.newlines = saved.newlines;
-$<HTMLInputElement>('newlines').checked = saved.newlines;
+con.newlines = prefs.newlines;
+$<HTMLInputElement>('newlines').checked = prefs.newlines;
 const inspector = new Inspector($('vars'), $('stack'));
 inspector.clear();
-const robotView = new RobotView(saved.world, (w) => {
-  save({ world: w });
+const robotView = new RobotView(structuredClone(files.current().world), (w) => {
+  files.update({ world: w });
   if (vm) stop(true);
 });
 $('robot').append(robotView.el);
 
-const editor = createEditor($('text'), saved.code, {
+const editor = createEditor($('text'), files.current().code, {
   change(text) {
-    save({ code: text });
+    files.update({ code: text });
     if (vm) stop(true);
     clearTimeout(textTimer);
     textTimer = window.setTimeout(() => analyze(text, 'text'), 200);
   },
   breakpoints(lines) {
-    save({ breakpoints: [...lines] });
+    files.update({ breakpoints: [...lines] });
     if (vm) vm.breakpoints = lines;
   },
 });
 let textTimer = 0;
-editor.setBreakpoints(saved.breakpoints);
+editor.setBreakpoints(files.current().breakpoints);
 
 const blocks = new BlocksPane($('blocks'), {
   program(p) {
@@ -69,7 +70,7 @@ const blocks = new BlocksPane($('blocks'), {
     if (text === editor.getText()) return;
     if (vm) stop(true);
     editor.setText(text);
-    save({ code: text });
+    files.update({ code: text });
     // map the reprinted statements back to the blocks they came from
     blockIdFor = new Map();
     analyze(text, 'blocks');
@@ -137,8 +138,11 @@ function showProblem(msg: string | null) {
 // ── running ────────────────────────────────────────────────────
 const DELAYS = [900, 550, 330, 200, 120, 70, 35, 15, 4, 0]; // ms per statement; 0 = full speed
 const speed = $<HTMLInputElement>('speed');
-speed.value = String(saved.speed);
-speed.oninput = () => save({ speed: Number(speed.value) });
+speed.value = String(prefs.speed);
+const SPEED_NAMES = ['Slowest', 'Very slow', 'Slow', 'Slow', 'Medium', 'Medium', 'Fast', 'Faster', 'Very fast', 'Instant'];
+const showSpeed = () => { $('speedLbl').textContent = SPEED_NAMES[Number(speed.value) - 1]; };
+showSpeed();
+speed.oninput = () => { showSpeed(); files.setPrefs({ speed: Number(speed.value) }); };
 const delay = () => DELAYS[Number(speed.value) - 1];
 
 function start(): boolean {
@@ -239,6 +243,7 @@ function stop(quiet = false) {
   vm = null;
   editor.setExecLine(null);
   blocks.highlight(null);
+  $('blocks').classList.remove('run-error');
   robotView.attach(null);
   robotView.setEditable(true);
   if (had && !quiet) con.message('Stopped.', 'info');
@@ -257,6 +262,7 @@ function render(full: boolean) {
   editor.setExecLine(vm.status === 'done' ? null : cur?.line ?? null, isErr ? 'error' : 'run');
   const sid = vm.status === 'done' ? null : vm.current?.id ?? null;
   blocks.highlight(sid ? blockIdFor.get(sid) ?? sid : null, full);
+  $('blocks').classList.toggle('run-error', isErr);
   inspector.update(vm);
   robotView.update(delay() === 0 && runMode === 'run' && running);
   highlightBytecode();
@@ -310,7 +316,7 @@ function highlightBytecode() {
   if (row) { row.classList.add('cur'); row.scrollIntoView({ block: 'nearest' }); }
 }
 function escapeHtml(s: string) {
-  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
 
 // ── chrome wiring ──────────────────────────────────────────────
@@ -323,7 +329,7 @@ $('stop').onclick = () => stop();
 $('clearConsole').onclick = () => con.clear();
 $<HTMLInputElement>('newlines').onchange = (e) => {
   con.newlines = (e.target as HTMLInputElement).checked;
-  save({ newlines: con.newlines });
+  files.setPrefs({ newlines: con.newlines });
 };
 
 document.querySelectorAll<HTMLButtonElement>('[data-ins]').forEach((b) => {
@@ -332,7 +338,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-ins]').forEach((b) => {
 
 function setView(v: View) {
   view = v;
-  save({ view: v });
+  files.setPrefs({ view: v });
   $('editors').dataset.view = v;
   document.querySelectorAll<HTMLButtonElement>('#view button').forEach((b) => b.classList.toggle('on', b.dataset.view === v));
   document.querySelector('.symbols')!.classList.toggle('hide', v === 'blocks');
@@ -358,12 +364,16 @@ ex.onchange = () => {
   const e = EXAMPLES[Number(ex.value)];
   ex.value = '';
   if (!e) return;
-  stop(true);
-  editor.setText(e.code);
-  save({ code: e.code });
-  if (e.world) robotView.setWorld(structuredClone(WORLDS[e.world]) as World, true);
-  con.clear();
-  analyze(e.code, 'text');
+  const world = e.world ? structuredClone(WORLDS[e.world]) as World : defaultWorld();
+  const cur = files.current();
+  // Replace the open file only if it's empty or an untouched example; otherwise open the example as a new file.
+  if (!cur.code.trim() || EXAMPLES.some((x) => x.code === cur.code)) {
+    files.update({ name: cur.name === e.name ? cur.name : files.uniqueName(e.name), code: e.code, world, breakpoints: [] }, true);
+  } else {
+    files.add(makeFile(files.uniqueName(e.name), e.code, world));
+  }
+  openFile(files.current());
+  toast(`Opened example “${e.name}”`);
 };
 
 $('refBody').innerHTML = REFERENCE_HTML;
@@ -371,6 +381,8 @@ $('refBtn').onclick = () => $<HTMLDialogElement>('ref').showModal();
 
 window.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); files.update({ code: editor.getText() }, true); toast('Saved. (Your work also saves automatically.)'); return; }
+  if (e.key === 'Escape' && !pop.hidden) { togglePop(false); return; }
   if (mod && e.key === 'Enter') { e.preventDefault(); running ? pause('user') : go('run'); }
   else if (e.key === 'F10') { e.preventDefault(); if (!running) go('over'); }
   else if (e.key === 'F11' && e.shiftKey) { e.preventDefault(); if (!running) go('out'); }
@@ -378,10 +390,203 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'F5' && e.shiftKey) { e.preventDefault(); stop(); }
 });
 
+// ── files ──────────────────────────────────────────────────────
+function openFile(f: FileDoc) {
+  stop(true);
+  editor.load(f.code, f.breakpoints);
+  robotView.setWorld(structuredClone(f.world), false);
+  con.clear();
+  inspector.clear();
+  $('fileName').textContent = f.name;
+  document.title = `${f.name} · CSP Studio`;
+  blocksStale = true;
+  analyze(f.code, 'text');
+  if (view !== 'text') syncBlocks();
+}
+
+const pop = $('filesPop');
+const ago = (t: number) => {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return new Date(t).toLocaleDateString();
+};
+function renderFiles() {
+  const cur = files.current().id;
+  $('fileList').innerHTML = files.list().map((f) => `
+    <li class="${f.id === cur ? 'on' : ''}" data-id="${f.id}">
+      <button class="open" data-id="${f.id}"><span class="nm">${escapeHtml(f.name)}</span><span class="when">${ago(f.updated)}</span></button>
+      <button class="del" data-del="${f.id}" title="Delete ${escapeHtml(f.name)}" aria-label="Delete">✕</button>
+    </li>`).join('');
+}
+function togglePop(open = pop.hidden) {
+  pop.hidden = !open;
+  $('fileBtn').setAttribute('aria-expanded', String(open));
+  if (open) {
+    const r = $('fileBtn').getBoundingClientRect();
+    if (innerWidth > 900) pop.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 390))}px`;
+    renderFiles();
+  }
+}
+$('fileBtn').onclick = (e) => { e.stopPropagation(); togglePop(); };
+document.addEventListener('pointerdown', (e) => {
+  if (!pop.hidden && !pop.contains(e.target as Node) && !$('fileBtn').contains(e.target as Node)) togglePop(false);
+});
+$('fileList').onclick = (e) => {
+  const t = e.target as HTMLElement;
+  const del = t.closest<HTMLElement>('[data-del]')?.dataset.del;
+  if (del) {
+    const f = files.list().find((x) => x.id === del)!;
+    if (!confirm(`Delete “${f.name}”? This can't be undone.`)) return;
+    const wasOpen = del === files.current().id;
+    files.remove(del);
+    if (wasOpen) openFile(files.current());
+    renderFiles();
+    toast(`Deleted “${f.name}”`);
+    return;
+  }
+  const id = t.closest<HTMLElement>('[data-id]')?.dataset.id;
+  if (id && id !== files.current().id) {
+    files.open(id);
+    openFile(files.current());
+    togglePop(false);
+  }
+};
+function rename() {
+  togglePop(false);
+  const span = $('fileName');
+  const btn = $('fileBtn');
+  const cur = files.current();
+  const input = document.createElement('input');
+  input.className = 'rename';
+  input.value = cur.name;
+  input.setAttribute('aria-label', 'Program name');
+  btn.hidden = true;
+  btn.after(input);
+  input.select();
+  let done = false;
+  const finish = (keep: boolean) => {
+    if (done) return;
+    done = true;
+    const name = input.value.trim().slice(0, 80);
+    input.remove();
+    btn.hidden = false;
+    if (keep && name && name !== cur.name) {
+      files.update({ name }, true);
+      span.textContent = name;
+      document.title = `${name} · CSP Studio`;
+    }
+  };
+  input.onkeydown = (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') finish(true);
+    if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = () => finish(true);
+  input.onclick = (e) => e.stopPropagation();
+}
+$('fileBtn').ondblclick = (e) => { e.preventDefault(); rename(); };
+pop.querySelector('.files-actions')!.addEventListener('click', (e) => {
+  const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
+  const cur = files.current();
+  if (act === 'new') {
+    files.add(makeFile(files.uniqueName('Untitled'), '', structuredClone(robotView.world)));
+    openFile(files.current());
+    togglePop(false);
+    editor.focus();
+  } else if (act === 'dup') {
+    files.add({ ...makeFile(files.uniqueName(`${cur.name} copy`), editor.getText(), structuredClone(cur.world)), breakpoints: [...cur.breakpoints] });
+    openFile(files.current());
+    renderFiles();
+    toast('Made a copy');
+  } else if (act === 'rename') {
+    rename();
+  } else if (act === 'import') {
+    $<HTMLInputElement>('importInput').click();
+  } else if (act === 'export') {
+    download();
+  }
+});
+$<HTMLInputElement>('importInput').onchange = async (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > 500_000) { toast('That file is too big to be a program.'); return; }
+  const text = (await file.text()).replace(/\r\n?/g, '\n');
+  files.add(makeFile(files.uniqueName(file.name.replace(/\.(txt|csp|md)$/i, '')), text, structuredClone(robotView.world)));
+  openFile(files.current());
+  togglePop(false);
+  toast(`Opened ${file.name}`);
+};
+function download() {
+  const f = files.current();
+  const blob = new Blob([editor.getText()], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${f.name.replace(/[^\w\- ]+/g, '').trim() || 'program'}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// save indicator
+const saveEl = $('saveState');
+files.onSave((st) => {
+  saveEl.dataset.state = st;
+  saveEl.textContent = st === 'saving' ? 'Saving…' : st === 'saved' ? 'Saved' : 'Not saved: browser storage is full or blocked';
+});
+
+// share links
+$('shareBtn').onclick = async () => {
+  const f = files.current();
+  const token = await encodeShare({ name: f.name, code: editor.getText(), world: program && usesRobot(program) ? robotView.world : undefined });
+  const url = `${location.origin}${location.pathname}#p=${token}`;
+  const input = $<HTMLInputElement>('shareUrl');
+  input.value = url;
+  $<HTMLDialogElement>('shareDlg').showModal();
+  input.select();
+};
+$('copyShare').onclick = async () => {
+  const input = $<HTMLInputElement>('shareUrl');
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch {
+    input.select();
+    document.execCommand('copy');
+  }
+  $('copyShare').textContent = 'Copied!';
+  setTimeout(() => { $('copyShare').textContent = 'Copy'; }, 1500);
+};
+async function openSharedFromHash() {
+  const m = location.hash.match(/^#p=([A-Za-z0-9_-]+)/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname);
+  const s = await decodeShare(m[1]);
+  if (!s) { toast("That link didn't contain a readable program."); return; }
+  const existing = files.list().find((f) => f.code === s.code);
+  if (existing) files.open(existing.id);
+  else files.add(makeFile(files.uniqueName(s.name), s.code, s.world ?? structuredClone(robotView.world)));
+  openFile(files.current());
+  toast(`Opened shared program “${files.current().name}” (saved to your programs)`);
+}
+window.addEventListener('hashchange', openSharedFromHash);
+
+// toast
+let toastTimer = 0;
+function toast(msg: string) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => t.classList.remove('show'), 3200);
+}
+
 // ── boot ───────────────────────────────────────────────────────
 setView(view);
-analyze(editor.getText(), 'text');
+openFile(files.current());
 updateChrome();
+openSharedFromHash();
 
 // dev hook for poking at things from the console
 (window as unknown as { __ide: unknown }).__ide = { editor, blocks, get vm() { return vm; }, go, stop };

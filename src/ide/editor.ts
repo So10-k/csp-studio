@@ -107,6 +107,9 @@ export interface CodeEditor {
   insert(text: string): void;
   breakpoints(): Set<number>;
   setBreakpoints(lines: number[]): void;
+  /** Open a different document (fresh undo history). */
+  load(text: string, breakpoints: number[]): void;
+  focus(): void;
 }
 
 export function createEditor(
@@ -115,11 +118,7 @@ export function createEditor(
   on: { change(text: string): void; breakpoints(lines: Set<number>): void },
 ): CodeEditor {
   let silent = false;
-  const view = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
+  const extensions = [
         gutter({
           class: 'cm-bp-gutter',
           markers: (v) => v.state.field(breakpointState),
@@ -153,16 +152,14 @@ export function createEditor(
         syntaxHighlighting(highlight),
         autocompletion({ override: [completeFromList(completions)] }),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-        EditorView.lineWrapping,
         EditorView.updateListener.of((u) => {
           if (u.docChanged && !silent) on.change(u.state.doc.toString());
           if (u.transactions.some((tr) => tr.effects.some((e) => e.is(breakpointEffect))) || (u.docChanged && hasBreakpoints(u.state))) {
             on.breakpoints(lines(u.state));
           }
         }),
-      ],
-    }),
-  });
+  ];
+  const view = new EditorView({ parent, state: EditorState.create({ doc, extensions }) });
 
   function toggleBreakpoint(v: EditorView, pos: number) {
     let has = false;
@@ -217,5 +214,10 @@ export function createEditor(
         .map((l) => breakpointEffect.of({ pos: view.state.doc.line(l).from, on: true }));
       if (effects.length) view.dispatch({ effects });
     },
+    load(text, bps) {
+      view.setState(EditorState.create({ doc: text, extensions }));
+      this.setBreakpoints(bps);
+    },
+    focus: () => view.focus(),
   };
 }

@@ -30,7 +30,7 @@ export class ConsoleView {
   }
 
   clear() {
-    this.out.innerHTML = '';
+    this.out.innerHTML = `<div class="hint">Press <b>Run</b> (Ctrl/⌘ + Enter) and your program's output appears here.<br>Click a line number to set a breakpoint, or use <b>Step</b> to go one statement at a time.</div>`;
     this.line = null;
     this.form.hidden = true;
     this.onInput = null;
@@ -43,6 +43,7 @@ export class ConsoleView {
   }
 
   private newLine(cls = '') {
+    this.out.querySelector('.hint')?.remove();
     this.line = document.createElement('div');
     this.line.className = `ln ${cls}`;
     this.out.append(this.line);
@@ -56,6 +57,7 @@ export class ConsoleView {
   }
 
   message(text: string, kind: 'error' | 'info' | 'ok') {
+    this.out.querySelector('.hint')?.remove();
     const d = document.createElement('div');
     d.className = `ln msg ${kind}`;
     d.textContent = text;

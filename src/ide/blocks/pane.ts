@@ -5,6 +5,7 @@ import { BlockError, jsonToProgram, programToJson, type WorkspaceJson } from './
 import { defineBlocks, THEME, TOOLBOX } from './defs';
 
 Blockly.setLocale(En as unknown as Record<string, string>);
+if (import.meta.env.DEV) (window as unknown as { __Blockly: unknown }).__Blockly = Blockly;
 
 /** The drag-and-drop editor. Emits a Program whenever the blocks form a complete program. */
 export class BlocksPane {

@@ -10,26 +10,70 @@
     <header class="top">
       <div class="brand">
         <svg class="logo" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 14.5 13.5H1.5z" /></svg>
-        <div><b>CSP Studio</b><small>AP Computer Science Principles pseudocode</small></div>
+        <b>CSP Studio</b>
+      </div>
+      <div class="file">
+        <button id="fileBtn" class="file-btn" aria-haspopup="dialog" title="Your programs">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.5h6l4 4v9H3z M9 1.5v4h4" /></svg>
+          <span id="fileName">My program</span>
+          <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>
+        <span id="saveState" class="save-state" data-state="saved">Saved</span>
       </div>
       <div class="controls" role="toolbar" aria-label="Run controls">
-        <button id="run" class="btn primary" title="Run (Ctrl/⌘ + Enter)"><span class="ico">▶</span><span class="lbl">Run</span></button>
-        <button id="pause" class="btn" title="Pause"><span class="ico">❚❚</span>Pause</button>
+        <button id="run" class="btn primary" title="Run (Ctrl/⌘ + Enter)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="M4 2.5v11l9-5.5z" /></svg><span class="lbl">Run</span>
+        </button>
+        <button id="pause" class="btn icon" title="Pause (Ctrl/⌘ + Enter)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="M4 3h3v10H4zM9 3h3v10H9z" /></svg><span class="lbl">Pause</span>
+        </button>
         <span class="divider"></span>
-        <button id="into" class="btn" title="Step into (F11): run one statement, entering procedures">Step</button>
-        <button id="over" class="btn" title="Step over (F10): run one statement, without stopping inside procedures">Step over</button>
-        <button id="out" class="btn" title="Step out (Shift + F11): finish the current procedure">Step out</button>
+        <button id="into" class="btn icon" title="Step (F11): run one statement, going into procedures">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5" /><circle class="fill" cx="8" cy="13.5" r="1.5" /></svg><span class="lbl">Step</span>
+        </button>
+        <button id="over" class="btn icon" title="Step over (F10): run one statement, without stopping inside procedures">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 9a5.5 5.5 0 0 1 11 0M13.5 5v4h-4" /><circle class="fill" cx="8" cy="13.5" r="1.5" /></svg><span class="lbl">Over</span>
+        </button>
+        <button id="out" class="btn icon" title="Step out (Shift + F11): finish the current procedure">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11V3M4.5 6.5 8 3l3.5 3.5" /><circle class="fill" cx="8" cy="13.5" r="1.5" /></svg><span class="lbl">Out</span>
+        </button>
         <span class="divider"></span>
-        <button id="stop" class="btn danger" title="Stop (Shift + F5)"><span class="ico">■</span>Stop</button>
-        <label class="speed" title="Speed">
-          <span>🐢</span><input id="speed" type="range" min="1" max="10" step="1" /><span>⚡</span>
+        <button id="stop" class="btn icon danger" title="Stop (Shift + F5)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect class="fill" x="3.5" y="3.5" width="9" height="9" rx="1.5" /></svg><span class="lbl">Stop</span>
+        </button>
+        <label class="speed" title="Speed: slow shows every step, fastest runs at full speed">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12a6 6 0 1 1 12 0M8 12l3-4" /></svg>
+          <input id="speed" type="range" min="1" max="10" step="1" aria-label="Speed" />
+          <span id="speedLbl" class="speed-lbl"></span>
         </label>
       </div>
       <div class="right">
-        <select id="examples" aria-label="Examples"></select>
-        <button id="refBtn" class="btn ghost">Reference sheet</button>
+        <select id="examples" aria-label="Open an example"></select>
+        <button id="shareBtn" class="btn ghost" title="Copy a link to this program">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5 9.5 6.5M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5 7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8" /></svg><span class="lbl">Share</span>
+        </button>
+        <button id="refBtn" class="btn ghost" title="Exam reference sheet">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3zM5.5 7h5M5.5 9.5h5M5.5 12h3" /></svg><span class="lbl">Reference</span>
+        </button>
       </div>
     </header>
+
+    <div id="filesPop" class="files-pop" hidden>
+      <div class="files-head">
+        <b>Your programs</b>
+        <span class="muted">saved in this browser</span>
+      </div>
+      <div class="files-actions">
+        <button class="btn tiny" data-act="new">+ New</button>
+        <button class="btn tiny" data-act="dup">Duplicate</button>
+        <button class="btn tiny" data-act="rename">Rename</button>
+        <button class="btn tiny" data-act="import">Open file…</button>
+        <button class="btn tiny" data-act="export">Download</button>
+      </div>
+      <ul id="fileList" class="file-list"></ul>
+      <input id="importInput" type="file" accept=".txt,.csp,.md,text/plain" hidden />
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <main class="layout">
       <section class="code-pane">
@@ -83,6 +127,16 @@
         </section>
       </aside>
     </main>
+
+    <dialog id="shareDlg" class="share-dlg">
+      <h2>Share this program</h2>
+      <p class="muted">Anyone with this link gets their own copy of the program (and its robot grid). Nothing is uploaded: the program is packed into the link itself.</p>
+      <div class="share-row">
+        <input id="shareUrl" readonly aria-label="Share link" />
+        <button id="copyShare" class="btn primary">Copy</button>
+      </div>
+      <form method="dialog"><button class="btn ghost">Done</button></form>
+    </dialog>
 
     <dialog id="ref" class="ref">
       <form method="dialog"><button class="btn ghost close" aria-label="Close">✕</button></form>
