@@ -85,8 +85,13 @@ export function walkExpr(e: Expr, fn: (e: Expr) => void) {
 
 /** Does the program use any robot command? (The IDE shows the grid when it does.) */
 export function usesRobot(p: Program): boolean {
+  return usesCall(p, ['MOVE_FORWARD', 'ROTATE_LEFT', 'ROTATE_RIGHT', 'CAN_MOVE']);
+}
+
+/** Does the program call any of these procedures? */
+export function usesCall(p: Program, names: string[]): boolean {
   let found = false;
-  const robot = new Set(['MOVE_FORWARD', 'ROTATE_LEFT', 'ROTATE_RIGHT', 'CAN_MOVE']);
+  const robot = new Set(names);
   const check = (e: Expr) => walkExpr(e, (x) => { if (x.kind === 'call' && robot.has(x.name)) found = true; });
   walkStmts(p.body, (s) => {
     switch (s.kind) {

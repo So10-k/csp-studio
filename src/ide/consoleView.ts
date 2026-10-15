@@ -6,6 +6,8 @@ export class ConsoleView {
   private line: HTMLElement | null = null;
   private onInput: ((text: string) => void) | null = null;
   newlines = false;
+  /** practice mode: show that output happened, not what it was */
+  masked = false;
 
   constructor(private root: HTMLElement) {
     root.innerHTML = `
@@ -38,7 +40,8 @@ export class ConsoleView {
 
   display(text: string) {
     if (this.newlines || !this.line) this.newLine();
-    this.line!.append(document.createTextNode(text + (this.newlines ? '' : ' ')));
+    const shown = this.masked ? '▒'.repeat(Math.min(Math.max(text.length, 1), 6)) : text;
+    this.line!.append(document.createTextNode(shown + (this.newlines ? '' : ' ')));
     this.scroll();
   }
 

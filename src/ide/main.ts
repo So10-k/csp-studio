@@ -1,20 +1,23 @@
 import './style.css';
-import { usesRobot, walkStmts, type Program } from '../lang/ast';
+import { usesCall, usesRobot, walkStmts, type Program } from '../lang/ast';
 import { compile, type Compiled } from '../lang/compiler';
 import { disasmFn } from '../lang/disasm';
 import { CompileError } from '../lang/errors';
 import { parse } from '../lang/parser';
 import { printProgram } from '../lang/printer';
 import { Robot, type World } from '../lang/robot';
+import { traceRun, Tracer, type RunResult } from '../lang/trace';
 import { parseInput } from '../lang/values';
 import { VM, type StepMode } from '../lang/vm';
 import { BlocksPane } from './blocks/pane';
 import { ConsoleView } from './consoleView';
-import { createEditor } from './editor';
+import { createEditor, type LineInfo } from './editor';
 import { EXAMPLES, WORLDS } from './examples';
 import { Inspector } from './inspector';
 import { REFERENCE_HTML } from './reference';
 import { RobotView } from './robotView';
+import { RunsView } from './runsView';
+import { TraceView } from './traceView';
 import { decodeShare, encodeShare } from './share';
 import { defaultWorld, files, makeFile, type FileDoc } from './storage';
 
@@ -34,6 +37,8 @@ let stepDepth = 0;
 let timer = 0;
 let lastRender = 0;
 let blocksStale = true;
+let tracer: Tracer | null = null;
+let analyzedText: string | null = null;
 /** statement id in the current text → block id (they differ after an edit made in the blocks view) */
 let blockIdFor = new Map<string, string>();
 
@@ -90,6 +95,10 @@ const blocks = new BlocksPane($('blocks'), {
 
 // ── compile as you type ────────────────────────────────────────
 function analyze(text: string, from: 'text' | 'blocks') {
+  if (text !== analyzedText) {
+    analyzedText = text;
+    codeChanged();
+  }
   try {
     const p = parse(text);
     program = p;
@@ -152,10 +161,13 @@ function start(): boolean {
     return false;
   }
   robot = program && usesRobot(program) ? new Robot(structuredClone(robotView.world)) : null;
-  vm = new VM(compiled, { display: (t) => con.display(t), robot: robot ?? undefined });
+  tracer = new Tracer(1000);
+  vm = new VM(compiled, tracer.host({ display: (t) => con.display(t), robot: robot ?? undefined }));
+  tracer.vm = vm;
   vm.breakpoints = editor.breakpoints();
   con.clear();
   inspector.clear();
+  editor.setInline(null);
   robotView.attach(robot);
   robotView.setEditable(false);
   renderBytecode();
@@ -263,7 +275,12 @@ function render(full: boolean) {
   const sid = vm.status === 'done' ? null : vm.current?.id ?? null;
   blocks.highlight(sid ? blockIdFor.get(sid) ?? sid : null, full);
   $('blocks').classList.toggle('run-error', isErr);
-  inspector.update(vm);
+  if (traceView.hiding) inspector.hide('🙈 Hidden in practice mode: work out the values in the Trace tab.');
+  else inspector.update(vm);
+  if (tracer) {
+    if (!$('trace').hidden) traceView.live(tracer);
+    showInline(tracer);
+  }
   robotView.update(delay() === 0 && runMode === 'run' && running);
   highlightBytecode();
   updateChrome();
@@ -354,7 +371,11 @@ document.querySelectorAll<HTMLButtonElement>('#sideTabs button').forEach((b) => 
   b.onclick = () => {
     document.querySelectorAll<HTMLButtonElement>('#sideTabs button').forEach((x) => x.classList.toggle('on', x === b));
     document.querySelectorAll<HTMLElement>('.tab-body').forEach((x) => { x.hidden = x.dataset.tab !== b.dataset.tab; });
+    // tables need room: widen the side panel while they're showing
+    document.body.classList.toggle('wide-side', b.dataset.tab === 'trace' || b.dataset.tab === 'runs');
     if (b.dataset.tab === 'code') renderBytecode();
+    if (b.dataset.tab === 'trace') { if (tracer && !traceView.hiding) traceView.live(tracer); else traceView.render(); }
+    if (b.dataset.tab === 'runs') runsView.render();
   };
 });
 
@@ -389,6 +410,77 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'F11') { e.preventDefault(); if (!running) go('into'); }
   else if (e.key === 'F5' && e.shiftKey) { e.preventDefault(); stop(); }
 });
+
+// ── teaching tools: trace table, practice, runs, values in code ─
+function showInline(t: Tracer | null) {
+  if (!t || !inlineToggle.checked || traceView.hiding) { editor.setInline(null); return; }
+  const info = new Map<number, LineInfo>();
+  for (const [line, count] of t.lineCounts) {
+    const vals = Object.entries(t.lineValues.get(line) ?? {}).map(([k, v]) => `${k.split('·')[0]} = ${v.length > 40 ? v.slice(0, 39) + '…' : v}`).join(', ');
+    info.set(line, { values: vals, count, cond: t.lineConds.get(line) });
+  }
+  editor.setInline(info);
+}
+
+function runAll(inputs: string[], maxRows: number): RunResult | null {
+  analyze(editor.getText(), 'text');
+  if (!compiled) { toast('Fix the error in the code first.'); return null; }
+  return traceRun(compiled, { inputs, maxRows, world: program && usesRobot(program) ? robotView.world : null });
+}
+const uses = (names: string[]) => !!program && usesCall(program, names);
+
+const traceView = new TraceView($('trace'), {
+  lineText: (n) => editor.lineText(n),
+  build(inputs) {
+    if (vm) stop(true);
+    const r = runAll(inputs, 2000);
+    if (r && !traceView.hiding) showInline(r.tracer);
+    return r;
+  },
+  usesInput: () => uses(['INPUT']),
+  practiceChanged(on) {
+    files.setPrefs({ practice: on });
+    applyPractice();
+  },
+});
+
+const runsView = new RunsView($('runs'), {
+  cases: () => files.current().runs ?? (files.current().runs = []),
+  saveCases: (c) => files.update({ runs: c }),
+  run: (inputs) => runAll(inputs, 0),
+  usesInput: () => uses(['INPUT']),
+  usesRandom: () => uses(['RANDOM']),
+});
+
+/** Practice mode hides the values everywhere except where students fill them in. */
+function applyPractice() {
+  const hiding = traceView.hiding;
+  $('practiceBadge').hidden = !traceView.practice;
+  $('practiceBadge').textContent = hiding ? 'Practice mode: values hidden' : 'Practice mode: revealed';
+  con.masked = hiding;
+  if (hiding) {
+    editor.setInline(null);
+    inspector.hide('🙈 Hidden in practice mode: work out the values in the Trace tab.');
+  } else if (vm) {
+    inspector.update(vm);
+    if (tracer) showInline(tracer);
+  } else {
+    inspector.clear();
+  }
+}
+
+const inlineToggle = $<HTMLInputElement>('inlineToggle');
+inlineToggle.checked = prefs.inline;
+inlineToggle.onchange = () => {
+  files.setPrefs({ inline: inlineToggle.checked });
+  showInline(tracer);
+};
+
+function codeChanged() {
+  tracer = null;
+  traceView?.reset();
+  runsView?.reset();
+}
 
 // ── files ──────────────────────────────────────────────────────
 function openFile(f: FileDoc) {
@@ -585,6 +677,8 @@ function toast(msg: string) {
 // ── boot ───────────────────────────────────────────────────────
 setView(view);
 openFile(files.current());
+if (prefs.practice) traceView.setPractice(true, true);
+applyPractice();
 updateChrome();
 openSharedFromHash();
 

@@ -5,7 +5,7 @@ import { lintGutter, setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import { EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state';
 import {
   Decoration, drawSelection, EditorView, gutter, GutterMarker, highlightActiveLine, highlightActiveLineGutter,
-  keymap, lineNumbers, type DecorationSet,
+  keymap, lineNumbers, WidgetType, type DecorationSet,
 } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { BUILTINS } from '../lang/ast';
@@ -90,6 +90,55 @@ const execState = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+// ── values shown at the end of each line ───────────────────────
+export interface LineInfo { values: string; count: number; cond?: boolean }
+class InlineWidget extends WidgetType {
+  constructor(private info: LineInfo) { super(); }
+  eq(o: InlineWidget) { return o.info.values === this.info.values && o.info.count === this.info.count && o.info.cond === this.info.cond; }
+  toDOM() {
+    const el = document.createElement('span');
+    el.className = 'cm-inline';
+    if (this.info.values) {
+      const v = document.createElement('span');
+      v.className = 'cm-inline-v';
+      v.textContent = this.info.values;
+      el.append(v);
+    }
+    if (this.info.cond !== undefined) {
+      const c = document.createElement('span');
+      c.className = `cm-inline-c ${this.info.cond}`;
+      c.textContent = String(this.info.cond);
+      el.append(c);
+    }
+    if (this.info.count > 1) {
+      const n = document.createElement('span');
+      n.className = 'cm-inline-n';
+      n.textContent = `×${this.info.count}`;
+      n.title = `This line ran ${this.info.count} times`;
+      el.append(n);
+    }
+    return el;
+  }
+}
+const inlineEffect = StateEffect.define<Map<number, LineInfo> | null>();
+const inlineState = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    for (const e of tr.effects) {
+      if (!e.is(inlineEffect)) continue;
+      if (!e.value) return Decoration.none;
+      const ranges = [...e.value]
+        .filter(([line]) => line >= 1 && line <= tr.state.doc.lines)
+        .sort((a, b) => a[0] - b[0])
+        .map(([line, info]) => Decoration.widget({ widget: new InlineWidget(info), side: 1 }).range(tr.state.doc.line(line).to));
+      return Decoration.set(ranges);
+    }
+    // values are about the code as it was run: drop them on any edit
+    return tr.docChanged ? Decoration.none : deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 const completions: Completion[] = [
   ...[...KEYWORDS].filter((k) => k !== 'TRUE' && k !== 'FALSE').map((k) => ({ label: k, type: 'keyword' })),
   ...Object.keys(BUILTINS).map((b) => ({ label: b, type: 'function', apply: `${b}(` })),
@@ -110,6 +159,9 @@ export interface CodeEditor {
   /** Open a different document (fresh undo history). */
   load(text: string, breakpoints: number[]): void;
   focus(): void;
+  /** Show values / run counts at line ends (null clears). */
+  setInline(info: Map<number, LineInfo> | null): void;
+  lineText(n: number): string;
 }
 
 export function createEditor(
@@ -140,6 +192,7 @@ export function createEditor(
           },
         }),
         execState,
+        inlineState,
         lintGutter(),
         history(),
         drawSelection(),
@@ -219,5 +272,7 @@ export function createEditor(
       this.setBreakpoints(bps);
     },
     focus: () => view.focus(),
+    setInline(info) { view.dispatch({ effects: inlineEffect.of(info) }); },
+    lineText: (n) => (n >= 1 && n <= view.state.doc.lines ? view.state.doc.line(n).text.trim() : ''),
   };
 }

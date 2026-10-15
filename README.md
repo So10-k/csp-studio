@@ -4,6 +4,7 @@ A compiler and visual IDE for the **College Board AP Computer Science Principles
 
 - **Compiler + VM** (`src/lang/`): lexer → parser → AST → stack bytecode → virtual machine. 1-based lists, list copies on assignment, out-of-range indexes and blocked robot moves terminate the program (as on the exam). Friendly compile/runtime errors with line numbers.
 - **IDE** (`src/ide/`): CodeMirror text editor + Blockly drag-and-drop blocks (kept in sync), step / step over / step out, breakpoints (click a line number), variables & list inspector, call stack, bytecode view, console with `INPUT()`, animated robot grid with an editor, examples, the reference sheet.
+- **Teaching tools**: values shown at the end of each line (with run counts and condition results), a trace table of every statement (copyable), a trace-table **practice mode** that hides the values for students to fill in and check, and a Runs tab (test runs with INPUT values and expected output, plus "run it N times" frequency tables for RANDOM).
 - **Saving**: every program autosaves in the browser (Your programs menu: new, duplicate, rename, open a file, download), plus share links that carry the program inside the URL.
 
 ```bash

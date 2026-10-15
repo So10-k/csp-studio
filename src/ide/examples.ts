@@ -174,6 +174,41 @@ DISPLAY(tries)
 `,
   },
   {
+    name: 'Trace it: mystery loop',
+    code: `// Practice tracing: turn on Practice in the Trace tab,
+// press Build table, and fill in every value.
+x ← 1
+y ← 10
+REPEAT UNTIL (x ≥ y)
+{
+    x ← x * 2
+    y ← y - 1
+}
+DISPLAY(x)
+DISPLAY(y)
+`,
+  },
+  {
+    name: 'Trace it: mystery procedure',
+    code: `// What does mystery do? Trace it to find out.
+PROCEDURE mystery(list)
+{
+    result ← 0
+    FOR EACH n IN list
+    {
+        IF (n MOD 2 = 0)
+        {
+            result ← result + n
+        }
+    }
+    RETURN(result)
+}
+
+nums ← [3, 8, 5, 4, 10]
+DISPLAY(mystery(nums))
+`,
+  },
+  {
     name: 'Robot: reach the goal',
     world: 'Exam-style 5×5',
     code: `// The robot (triangle) must reach the gray square.

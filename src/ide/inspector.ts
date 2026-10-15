@@ -23,6 +23,11 @@ export class Inspector {
     this.stack.innerHTML = `<p class="empty">—</p>`;
   }
 
+  hide(msg: string) {
+    this.prev.clear();
+    this.vars.innerHTML = `<p class="empty">${msg}</p>`;
+  }
+
   update(vm: VM) {
     const next = new Map<string, string>();
     let html = '';

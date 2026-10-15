@@ -89,6 +89,10 @@
             <button data-ins="≤" title="Less than or equal (or type <=)">≤</button>
             <button data-ins="≥" title="Greater than or equal (or type >=)">≥</button>
           </div>
+          <label class="switch" title="After a run, show each line's values and how many times it ran">
+            <input type="checkbox" id="inlineToggle" /><span class="track"></span> Values in code
+          </label>
+          <span id="practiceBadge" class="practice-badge" hidden>Practice mode</span>
           <span id="status" class="pill">Ready</span>
         </div>
         <div class="editors" id="editors" data-view="text">
@@ -109,10 +113,14 @@
         <section class="card state-card">
           <div class="tabs" id="sideTabs" role="tablist">
             <button data-tab="vars" class="on">Variables</button>
-            <button data-tab="stack">Call stack</button>
+            <button data-tab="trace" title="Trace table: every statement that ran and what it changed">Trace</button>
+            <button data-tab="runs" title="Run the program with different inputs, or many times">Runs</button>
+            <button data-tab="stack">Stack</button>
             <button data-tab="code">Bytecode</button>
           </div>
           <div class="tab-body" data-tab="vars" id="vars"></div>
+          <div class="tab-body trace-body" data-tab="trace" id="trace" hidden></div>
+          <div class="tab-body" data-tab="runs" id="runs" hidden></div>
           <div class="tab-body" data-tab="stack" id="stack" hidden></div>
           <div class="tab-body mono" data-tab="code" id="bytecode" hidden></div>
         </section>

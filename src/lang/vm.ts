@@ -11,6 +11,14 @@ export interface Host {
   display(text: string): void;
   robot?: Robot;
   random?: () => number;
+  /** called as each statement starts (for tracing) */
+  onStmt?(ins: Extract<Instr, { op: 'STMT' }>): void;
+  /** called with each conditional jump's test (an IF condition, or NOT the REPEAT UNTIL condition) */
+  onCondition?(value: boolean): void;
+  /** called after a procedure returns to its caller */
+  onReturn?(): void;
+  /** called when INPUT() receives a value */
+  onInput?(value: Value): void;
 }
 
 export interface Frame {
@@ -50,6 +58,7 @@ export class VM {
     if (this.status !== 'input') throw new Error('not waiting for input');
     this.stack.push(v);
     this.status = 'paused';
+    this.host.onInput?.(v);
   }
 
   /** Visible variables for the inspector: [scope name, entries] (hidden loop counters left out). */
@@ -145,6 +154,7 @@ export class VM {
       case 'STMT':
         this.current = ins;
         f.stmt = ins.span;
+        this.host.onStmt?.(ins);
         break;
       case 'CONST': this.stack.push(ins.v); break;
       case 'LOAD': this.stack.push(this.lookup(ins.name, f)); break;
@@ -174,7 +184,13 @@ export class VM {
       case 'NEG': this.stack.push(-num(this.pop(), 'The - sign')); break;
       case 'NOT': this.stack.push(!bool(this.pop(), 'NOT')); break;
       case 'JMP': f.pc = ins.to; break;
-      case 'JF': if (!bool(this.pop(), 'A condition')) f.pc = ins.to; break;
+      case 'JF': {
+        const v = bool(this.pop(), 'A condition');
+        // (for REPEAT UNTIL this is NOT condition: it compiles to NOT + JF)
+        this.host.onCondition?.(v);
+        if (!v) f.pc = ins.to;
+        break;
+      }
       case 'AND_JMP': case 'OR_JMP': {
         const v = this.pop();
         bool(v, ins.op === 'AND_JMP' ? 'AND' : 'OR');
@@ -198,6 +214,7 @@ export class VM {
         const v: Slot = ins.op === 'RETV' ? this.pop() : new NoValue(f.fn.name);
         this.frames.pop();
         this.stack.push(v);
+        this.host.onReturn?.();
         break;
       }
       case 'COUNT_INIT': {

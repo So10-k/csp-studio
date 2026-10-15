@@ -1,4 +1,5 @@
 import type { World } from '../lang/robot';
+import type { RunCase } from './runsView';
 import { EXAMPLES, WORLDS } from './examples';
 
 /** One saved program. */
@@ -9,12 +10,18 @@ export interface FileDoc {
   world: World;
   breakpoints: number[];
   updated: number;
+  /** test runs in the Runs tab */
+  runs?: RunCase[];
 }
 
 export interface Prefs {
   view: 'text' | 'blocks' | 'split';
   speed: number;
   newlines: boolean;
+  /** show values and run counts at the end of each line */
+  inline: boolean;
+  /** trace-table practice mode */
+  practice: boolean;
 }
 
 interface Store {
@@ -28,7 +35,7 @@ const KEY = 'csp-studio:v2';
 const OLD_KEY = 'csp-studio';
 
 export const defaultWorld = (): World => structuredClone(WORLDS['Exam-style 5×5']);
-const defaultPrefs = (): Prefs => ({ view: 'split', speed: 6, newlines: false });
+const defaultPrefs = (): Prefs => ({ view: 'split', speed: 6, newlines: false, inline: true, practice: false });
 
 export function newId() {
   return Math.random().toString(36).slice(2, 10);
