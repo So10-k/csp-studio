@@ -43,6 +43,7 @@ export const REFERENCE_HTML = [
     <li><b>Values in code</b> (the switch above the editor) shows what each line last set, how many times it ran (×n), and whether an IF or REPEAT UNTIL condition was true.</li>
     <li>The <b>Trace</b> tab builds a trace table: one row per statement that ran, one column per variable. Turn on <b>Practice</b> to hide the values and fill them in yourself, then press <b>Check</b>. <b>Copy</b> pastes the table into a spreadsheet.</li>
     <li>The <b>Runs</b> tab runs the whole program with different INPUT values and checks the output against what you expect. <b>How often?</b> runs it many times and counts each output (great for RANDOM).</li>
+    <li><b>Tracing</b> (top bar) opens exam practice: pick a level and answer 10 AP-style tracing questions without running the code.</li>
     <li>Extras that aren't on the exam: <code>// comments</code>, and <code>+</code> joins text (<code>"n = " + n</code>).</li>
     <li>Variables made inside a procedure are local to it; a procedure can change a global that already exists. Lists passed to a procedure are shared, not copied.</li>
     <li>Editing in the Blocks view rewrites the text in standard form, so comments are dropped.</li>

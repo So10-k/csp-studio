@@ -18,6 +18,7 @@ import { REFERENCE_HTML } from './reference';
 import { RobotView } from './robotView';
 import { RunsView } from './runsView';
 import { TraceView } from './traceView';
+import { TracingMode } from './tracingMode';
 import { decodeShare, encodeShare } from './share';
 import { defaultWorld, files, makeFile, type FileDoc } from './storage';
 
@@ -401,6 +402,7 @@ $('refBody').innerHTML = REFERENCE_HTML;
 $('refBtn').onclick = () => $<HTMLDialogElement>('ref').showModal();
 
 window.addEventListener('keydown', (e) => {
+  if (tracing?.active) return;
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); files.update({ code: editor.getText() }, true); toast('Saved. (Your work also saves automatically.)'); return; }
   if (e.key === 'Escape' && !pop.hidden) { togglePop(false); return; }
@@ -673,6 +675,14 @@ function toast(msg: string) {
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => t.classList.remove('show'), 3200);
 }
+
+// ── tracing mode (exam practice) ───────────────────────────────
+const tracing = new TracingMode({ toast, onExit: () => editor.focus() });
+$('tracingBtn').onclick = () => {
+  if (vm) stop(true);
+  togglePop(false);
+  tracing.open();
+};
 
 // ── boot ───────────────────────────────────────────────────────
 setView(view);
