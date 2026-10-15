@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CSP Studio — AP CSP pseudocode IDE</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1 15 14H1z' fill='%231f5fbf'/></svg>" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 14.5 13.5H1.5z" /></svg>
+        <div><b>CSP Studio</b><small>AP Computer Science Principles pseudocode</small></div>
+      </div>
+      <div class="controls" role="toolbar" aria-label="Run controls">
+        <button id="run" class="btn primary" title="Run (Ctrl/⌘ + Enter)"><span class="ico">▶</span><span class="lbl">Run</span></button>
+        <button id="pause" class="btn" title="Pause"><span class="ico">❚❚</span>Pause</button>
+        <span class="divider"></span>
+        <button id="into" class="btn" title="Step into (F11): run one statement, entering procedures">Step</button>
+        <button id="over" class="btn" title="Step over (F10): run one statement, without stopping inside procedures">Step over</button>
+        <button id="out" class="btn" title="Step out (Shift + F11): finish the current procedure">Step out</button>
+        <span class="divider"></span>
+        <button id="stop" class="btn danger" title="Stop (Shift + F5)"><span class="ico">■</span>Stop</button>
+        <label class="speed" title="Speed">
+          <span>🐢</span><input id="speed" type="range" min="1" max="10" step="1" /><span>⚡</span>
+        </label>
+      </div>
+      <div class="right">
+        <select id="examples" aria-label="Examples"></select>
+        <button id="refBtn" class="btn ghost">Reference sheet</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="code-pane">
+        <div class="pane-head">
+          <div class="seg" id="view" role="tablist" aria-label="Editor view">
+            <button data-view="text" role="tab">Text</button>
+            <button data-view="blocks" role="tab">Blocks</button>
+            <button data-view="split" role="tab">Split</button>
+          </div>
+          <div class="symbols" aria-label="Insert symbol">
+            <button data-ins="←" title="Assign (or type <-)">←</button>
+            <button data-ins="≠" title="Not equal (or type !=)">≠</button>
+            <button data-ins="≤" title="Less than or equal (or type <=)">≤</button>
+            <button data-ins="≥" title="Greater than or equal (or type >=)">≥</button>
+          </div>
+          <span id="status" class="pill">Ready</span>
+        </div>
+        <div class="editors" id="editors" data-view="text">
+          <div class="ed-text" id="text"></div>
+          <div class="ed-blocks">
+            <div class="blocks-banner" id="blocksBanner" hidden></div>
+            <div id="blocks"></div>
+          </div>
+        </div>
+        <div class="problem" id="problem" hidden></div>
+      </section>
+
+      <aside class="side">
+        <section class="card robot-card" id="robotCard" hidden>
+          <h2>Robot grid</h2>
+          <div id="robot"></div>
+        </section>
+        <section class="card state-card">
+          <div class="tabs" id="sideTabs" role="tablist">
+            <button data-tab="vars" class="on">Variables</button>
+            <button data-tab="stack">Call stack</button>
+            <button data-tab="code">Bytecode</button>
+          </div>
+          <div class="tab-body" data-tab="vars" id="vars"></div>
+          <div class="tab-body" data-tab="stack" id="stack" hidden></div>
+          <div class="tab-body mono" data-tab="code" id="bytecode" hidden></div>
+        </section>
+        <section class="card console-card">
+          <h2>
+            Console
+            <span class="spacer"></span>
+            <label class="opt"><input type="checkbox" id="newlines" /> one value per line</label>
+            <button id="clearConsole" class="btn tiny ghost">Clear</button>
+          </h2>
+          <div id="console" class="console"></div>
+        </section>
+      </aside>
+    </main>
+
+    <dialog id="ref" class="ref">
+      <form method="dialog"><button class="btn ghost close" aria-label="Close">✕</button></form>
+      <h2>Exam reference sheet: quick guide</h2>
+      <div id="refBody"></div>
+    </dialog>
+
+    <script type="module" src="/src/ide/main.ts"></script>
+  </body>
+</html>

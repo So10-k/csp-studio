@@ -34,6 +34,10 @@ export class VM {
   breakpoints = new Set<number>();
   /** total instructions executed */
   steps = 0;
+  /** why the last run() returned */
+  reason: 'budget' | 'step' | 'breakpoint' | 'input' | 'end' | 'error' | null = null;
+  /** paused exactly at a statement boundary (so resuming must not stop there again) */
+  private atStop = false;
 
   constructor(public prog: Compiled, public host: Host) {
     this.frames.push({ fn: prog.main, pc: 0, locals: this.globals, stmt: null });
@@ -61,12 +65,12 @@ export class VM {
    * Execute up to `budget` instructions. Stops early at a statement boundary that satisfies `mode`
    * (or a breakpoint), when waiting for INPUT, at the end, or on an error. Returns the new status.
    */
-  run(budget: number, mode: StepMode = 'run'): Status {
+  run(budget: number, mode: StepMode = 'run', startDepth = this.frames.length): Status {
     if (this.done || this.status === 'input') return this.status;
-    // Resuming from a pause skips the check on the statement we're paused at; a fresh start doesn't.
-    let first = this.status !== 'ready';
+    // Resuming from a stop skips the check on the statement we stopped at; a fresh start doesn't.
+    let first = this.atStop;
+    this.atStop = false;
     this.status = 'running';
-    const startDepth = this.frames.length;
     try {
       while (budget-- > 0) {
         const f = this.frames[this.frames.length - 1];
@@ -74,6 +78,7 @@ export class VM {
         if (!ins) {
           // fell off the end of the main program
           this.status = 'done';
+          this.reason = 'end';
           this.current = null;
           return this.status;
         }
@@ -88,6 +93,8 @@ export class VM {
             this.current = ins;
             f.stmt = ins.span;
             this.status = 'paused';
+            this.atStop = true;
+            this.reason = this.breakpoints.has(ins.span.line) && mode === 'run' ? 'breakpoint' : 'step';
             return this.status;
           }
         }
@@ -95,9 +102,10 @@ export class VM {
         f.pc++;
         this.steps++;
         this.exec(ins, f);
-        if (this.status !== 'running') return this.status;
+        if ((this.status as Status) === 'input') { this.reason = 'input'; return this.status; }
       }
       this.status = 'paused';
+      this.reason = 'budget';
       return this.status;
     } catch (e) {
       const f = this.frames[this.frames.length - 1];
@@ -109,6 +117,7 @@ export class VM {
         this.error = new RuntimeError(String((e as Error)?.message ?? e), ins?.span);
       }
       this.status = 'error';
+      this.reason = 'error';
       return this.status;
     }
   }
