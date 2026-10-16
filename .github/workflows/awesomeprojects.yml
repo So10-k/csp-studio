@@ -1,0 +1,15 @@
+name: Deploy to awesomeprojects.tech
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  site:
+    uses: So10-k/awesomeprojects.tech/.github/workflows/pages-site.yml@main
